@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getBearerToken } from "@/lib/auth";
 import { StoreError, getUserOrders } from "@/lib/db";
-import { db } from "@/lib/db/client";
+import { db } from "@/lib/db/db";
 import { createCustomerOrder } from "@/lib/hasi";
 import { normalizeTajikPhone } from "@/lib/phone";
 import { sendNewOrderNotice } from "@/lib/telegram";

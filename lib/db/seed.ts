@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
-import { db } from "./client";
+import { db } from "./db";
 import { initializeSchema } from "./schema";
 import { seedProducts } from "@/lib/seed-products";
 

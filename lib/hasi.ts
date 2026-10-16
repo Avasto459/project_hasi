@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { randomBytes, randomUUID } from "crypto";
 import type { Row } from "@libsql/client";
-import { db } from "@/lib/db/client";
+import { db } from "@/lib/db/db";
 import { initializeSchema } from "@/lib/db/schema";
 import { StoreError, getSetting, saveActivity, setSetting } from "@/lib/db";
 import {

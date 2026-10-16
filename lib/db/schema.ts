@@ -1,4 +1,4 @@
-import { db } from "./client";
+import { db } from "./db";
 import { CENTRAL_WAREHOUSE_ID } from "../hasi-config";
 
 let init: Promise<void> | null = null;

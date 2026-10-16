@@ -2,8 +2,7 @@ import bcrypt from "bcryptjs";
 import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from "crypto";
 import { getCodeSecret, signToken } from "@/lib/auth";
 import { normalizeTajikPhone } from "@/lib/phone";
-import { createClient } from '@libsql/client';
-import { db } from "./client";
+import { db } from "./db";
 import { initializeDatabase } from "./seed";
 
 export type UserRole = "USER" | "ADMIN" | "DEALER" | "DISTRIBUTOR";

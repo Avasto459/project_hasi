@@ -1,4 +1,4 @@
-import { db } from "@/lib/db/client";
+import { db } from "@/lib/db/db";
 import { initializeSchema } from "@/lib/db/schema";
 
 export type AccountUser = {
