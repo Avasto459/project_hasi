@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { hashPassword, signToken } from "@/lib/auth";
-import { deliverEmailCode } from "@/lib/email";
 import {
   createUser,
   findMemoryUserByEmail,
@@ -8,11 +7,9 @@ import {
   getUserByEmail,
   getUserByPhone,
   getUserDisplayName,
-  isReadOnlyMode,
-  issueRegistrationCode,
-  saveMemoryUser,
   StoreError,
 } from "@/lib/db";
+import { isPrimaryAdminEmail } from "@/lib/jwt-secret";
 import { normalizeTajikPhone } from "@/lib/phone";
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from "@/lib/session";
 
@@ -38,7 +35,6 @@ function issueAutoLogin(request: Request, user: Parameters<typeof getPublicUser>
 
 export async function POST(request: Request) {
   let email = "";
-  let registrationPending = false;
   try {
     const body = await request.json() as {
       firstName?: string;
@@ -70,26 +66,10 @@ export async function POST(request: Request) {
 
     const passwordHash = await hashPassword(body.password);
 
-    // П.2: read-only окружение Vercel — создаём пользователя сразу в памяти
-    // (createUser сам выберет память при read-only) и АВТО-АВТОРИЗУЕМ (П.1):
-    // JWT + cookie, редирект на /admin или /account по роли.
-    if (isReadOnlyMode()) {
-      const user = await createUser({ firstName, lastName, email, phone: normalizedPhone, passwordHash });
-      saveMemoryUser(user!);
-      return issueAutoLogin(request, user!);
-    }
-
-    const code = await issueRegistrationCode({ email, firstName, lastName, phone: normalizedPhone, passwordHash });
-    registrationPending = true;
-    const delivery = await deliverEmailCode(email, code, "verify", { exposeOnScreen: true });
-    return NextResponse.json({
-      success: true,
-      requiresVerification: true,
-      ...(delivery.devCode ? { devCode: delivery.devCode } : {}),
-      message: delivery.delivered
-        ? "Код подтверждения отправлен на email."
-        : "SMTP не настроен, поэтому письмо не отправлено. Тестовый код показан ниже и выведен в консоль сервера.",
-    }, { status: 202 });
+    const role = isPrimaryAdminEmail(email) ? "ADMIN" : "USER";
+    const user = await createUser({ firstName, lastName, email, phone: normalizedPhone, passwordHash, role });
+    if (!user) throw new StoreError("Не удалось создать пользователя.", 500);
+    return issueAutoLogin(request, user);
   } catch (error) {
     const configurationError = error instanceof Error &&
       (error.message.startsWith("Настройте SMTP") || error.message.startsWith("Не удалось отправить email") || error.message.includes("AUTH_CODE_SECRET"));
@@ -100,7 +80,7 @@ export async function POST(request: Request) {
         ? "Настройте AUTH_CODE_SECRET в backend .env."
         : error instanceof Error ? error.message : "Проверьте настройки SMTP."
       : error instanceof StoreError ? error.message : "Не удалось начать регистрацию. Проверьте данные и настройки сервера.";
-    const response = { error: message, ...(registrationPending ? { requiresVerification: true } : {}) };
+    const response = { error: message };
     return NextResponse.json(response, { status });
   }
 }
