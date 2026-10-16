@@ -9,7 +9,7 @@ import { HasiAdminPanel } from "@/components/hasi-admin-panel";
 type Category = { id: string; name: string; slug: string; subtitle: string; description: string; image: string; status: string; parentId: string | null };
 type Product = { id: string; name: string; slug: string; sku: string; brand: string; price: number; previousPrice: number | null; shortDescription: string; description: string; image: string; sourceUrl: string; images: string[]; specifications: Record<string, string>; categoryId: string; stock: number; featured: number; isPublished: number; type: "product" | "service" };
 type OrderLine = { id: string; name: string; sku: string; unitPrice: number; quantity: number; lineTotal: number };
-type Order = { id: string; orderNumber: string | null; email: string; firstName: string; lastName: string; phone: string; address: string; city: string; comment: string; total: number; status: string; createdAt: string; items: OrderLine[] };
+type Order = { id: string; orderNumber: string | null; kind: "order" | "request"; email: string; firstName: string; lastName: string; phone: string; address: string; city: string; comment: string; total: number; status: string; createdAt: string; items: OrderLine[] };
 type ContactMessage = { id: string; name: string; email: string; phone: string; message: string; status: "NEW" | "READ" | "ANSWERED"; reply: string; replyText: string; isReplied: boolean; repliedAt: string | null; createdAt: string };
 type LogEntry = { id: string; action: string; message: string; createdAt: string };
 type Overview = { users: number; categories: number; products: number; orders: number; recent: LogEntry[] };
@@ -506,7 +506,11 @@ export function AdminDashboard({ initialTab = "overview" }: { initialTab?: Tab }
                   {orders.map((order) => (
                     <article key={order.id} className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
                       <div className="flex flex-wrap justify-between gap-3">
-                        <div><div className="font-bold">Заказ {order.orderNumber || order.id.slice(0, 8)} · {order.firstName} {order.lastName}</div><div className="mt-1 text-sm text-slate-500">{order.phone} · {order.email} · {order.city}, {order.address}</div></div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="font-bold">{order.kind === "request" ? "Заявка" : "Заказ"} {order.orderNumber || order.id.slice(0, 8)} · {order.firstName} {order.lastName}</div>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${order.kind === "request" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"}`}>{order.kind === "request" ? "Гостевой" : "Аккаунт"}</span>
+                        </div>
+                        <div className="mt-1 text-sm text-slate-500">{order.phone} · {order.email || "—"} · {order.city || "—"}, {order.address}</div>
                         <div className="font-bold">{formatTjs(order.total)}</div>
                       </div>
                       <div className="mt-3 text-sm">{order.items.map((item) => `${item.name} × ${item.quantity}`).join(" · ")}</div>

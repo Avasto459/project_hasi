@@ -10,7 +10,7 @@
     "catalog:sync": "node --env-file-if-exists=.env.local scripts/sync-hasi-catalog.mjs",
     "catalog:sync:local": "node --env-file-if-exists=.env.local scripts/sync-hasi-catalog.mjs --local",
     "db:reset": "node --env-file-if-exists=.env.local scripts/reset-database.mjs",
-    "dev:local": "npm run catalog:sync:local && HASI_LOCAL_DB=1 next dev",
+    "dev:local": "npm run catalog:sync:local && USE_LOCAL_DB=true next dev",
     "seed": "node --env-file-if-exists=.env.local scripts/sync-hasi-catalog.mjs"
   },
   "dependencies": {

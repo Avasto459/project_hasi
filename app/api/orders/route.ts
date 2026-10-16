@@ -6,6 +6,7 @@ import { createCustomerOrder } from "@/lib/hasi";
 import { normalizeTajikPhone } from "@/lib/phone";
 import { sendNewOrderNotice } from "@/lib/telegram";
 import { requireUser } from "@/lib/api-auth";
+import { clearSessionCookie } from "@/lib/session";
 
 /** История заказов для УЖЕ существующих аккаунтов магазина (старый раздел). */
 export async function GET(request: Request) {
@@ -13,9 +14,11 @@ export async function GET(request: Request) {
     const user = await requireUser(request);
     return NextResponse.json({ orders: await getUserOrders(user.id) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось загрузить заказы." }, {
-      status: error instanceof StoreError ? error.status : 500,
-    });
+    const status = error instanceof StoreError ? error.status : 500;
+    const invalidSession = status === 401;
+    const response = NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось загрузить заказы." }, { status });
+    if (invalidSession) clearSessionCookie(response, request);
+    return response;
   }
 }
 

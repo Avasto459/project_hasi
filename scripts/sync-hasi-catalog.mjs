@@ -12,6 +12,9 @@ const db = useTurso
 const now = new Date().toISOString();
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `item-${randomUUID()}`;
 const plainText = (html) => String(html || '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/\s+/g, ' ').trim();
+// def(value, fallback) — если value === undefined, подставляем надёжное бек-ап значение,
+// чтобы в базу никогда не попали undefined-аргументы (вызывает ошибку SQLite).
+const def = (v, fb) => v === undefined ? fb : v;
 async function getJson(url) {
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -119,6 +122,22 @@ try {
     categoryIds.set(c.slug, String(actual.rows[0].id));
   }
 
+  // Убедимся, что у каждого товара есть категория в categoryIds (защита от undefined categoryId).
+  for (const p of liveProducts) {
+    if (!categoryIds.has(p.categorySlug)) {
+      const fallbackSlug = 'hasi-cat-uncategorized';
+      if (!categoryIds.has(fallbackSlug)) {
+        categoryIds.set(fallbackSlug, fallbackSlug);
+        await db.execute({
+          sql: `INSERT INTO categories(id,slug,name,subtitle,description,image,sourceUrl,sort,status) VALUES(?,?,?,?,?,?,?,?, 'published')
+                ON CONFLICT(slug) DO NOTHING`,
+          args: [fallbackSlug, fallbackSlug, 'Без категории', '', 'Товары без указанной категории.', '', `${site}/product-category/uncategorized/`, 9999],
+        });
+      }
+      categoryIds.set(p.categorySlug, categoryIds.get(fallbackSlug));
+    }
+  }
+
   const keepSlugs = new Set();
   for (const p of liveProducts) {
     keepSlugs.add(p.slug);
@@ -128,7 +147,14 @@ try {
       sql: `INSERT INTO products(id,slug,name,shortDescription,description,sku,brand,images,specifications,price,previousPrice,image,sourceUrl,categoryId,featured,rating,stock,isPublished,createdAt)
             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(slug) DO UPDATE SET name=excluded.name,shortDescription=excluded.shortDescription,description=excluded.description,sku=excluded.sku,brand=excluded.brand,images=excluded.images,price=excluded.price,previousPrice=excluded.previousPrice,image=excluded.image,sourceUrl=excluded.sourceUrl,categoryId=excluded.categoryId,featured=excluded.featured,stock=excluded.stock,isPublished=1`,
-      args: [id, p.slug, p.name, p.short, p.description, p.sku, p.brand, JSON.stringify(p.images), JSON.stringify({ source: 'hasi.tj' }), p.price, p.previousPrice, p.image, p.sourceUrl, categoryIds.get(p.categorySlug), p.featured ? 1 : 0, 5, p.stock, 1, p.createdAt],
+      args: [
+        def(id, randomUUID()), def(p.slug, slugify(p.name)), def(p.name, `Товар ${p.id}`),
+        def(p.short, ''), def(p.description, ''), def(p.sku, ''), def(p.brand, 'HASI Technology'),
+        JSON.stringify(def(p.images, [])), JSON.stringify(def({ source: 'hasi.tj' }, { source: 'hasi.tj' })),
+        def(p.price, 0), def(p.previousPrice, null), def(p.image, ''), def(p.sourceUrl, `${site}/?post_type=product&p=${p.id}`),
+        def(categoryIds.get(p.categorySlug), 'hasi-cat-uncategorized'),
+        def(p.featured ? 1 : 0, 0), def(5, 0), def(p.stock, 0), 1, def(p.createdAt, now)
+      ],
     });
   }
 

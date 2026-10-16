@@ -4,7 +4,7 @@ import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { comparePassword } from "@/lib/auth";
 import { deleteOwnAccount, updateUserProfile, getUserById, getUserByEmail, getUserByPhone, StoreError, getPublicUser } from "@/lib/db";
-import { SESSION_COOKIE_NAME, sessionCookieOptions } from "@/lib/session";
+import { SESSION_COOKIE_NAME, sessionCookieOptions, clearSessionCookie } from "@/lib/session";
 import { requireUser } from "@/lib/api-auth";
 import { normalizeTajikPhone } from "@/lib/phone";
 
@@ -53,9 +53,11 @@ export async function PUT(request: Request) {
     return NextResponse.json({ user: getPublicUser(updatedUser) });
   } catch (error) {
     if (error && !(error instanceof StoreError)) console.error("Profile update failed:", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось обновить профиль." }, {
-      status: error instanceof StoreError ? error.status : 500,
-    });
+    const status = error instanceof StoreError ? error.status : 500;
+    const invalidSession = status === 401;
+    const response = NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось обновить профиль." }, { status });
+    if (invalidSession) clearSessionCookie(response, request);
+    return response;
   }
 }
 
@@ -79,8 +81,10 @@ export async function DELETE(request: Request) {
     return response;
   } catch (error) {
     if (error && !(error instanceof StoreError)) console.error("Account deletion failed:", error);
-    return NextResponse.json({ error: error instanceof StoreError ? error.message : "Не удалось удалить аккаунт." }, {
-      status: error instanceof StoreError ? error.status : 500,
-    });
+    const status = error instanceof StoreError ? error.status : 500;
+    const invalidSession = status === 401;
+    const response = NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось удалить аккаунт." }, { status });
+    if (invalidSession) clearSessionCookie(response, request);
+    return response;
   }
 }

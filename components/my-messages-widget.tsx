@@ -10,6 +10,8 @@ type PublicMessage = {
 type VisitorItem = { id: string; token: string };
 const ITEMS_KEY = "hasi-contact-messages";
 const SEEN_KEY = "hasi-contact-seen";
+const GUEST_NAME_KEY = "hasi-chat-guest-name";
+const GUEST_PHONE_KEY = "hasi-chat-guest-phone";
 const SENT_EVENT = "hasi:contact-sent";
 const POLL_MS = 5000;
 function readJson<T>(key: string, fallback: T): T {
@@ -55,6 +57,12 @@ export function MyMessagesWidget() {
   useEffect(() => {
     setSeen(readJson<Record<string, string>>(SEEN_KEY, {}));
     setIsLoggedIn(Boolean(localStorage.getItem("hasi-token")));
+    if (!localStorage.getItem("hasi-token")) {
+      const storedName = localStorage.getItem(GUEST_NAME_KEY);
+      const storedPhone = localStorage.getItem(GUEST_PHONE_KEY);
+      if (storedName) setName(storedName);
+      if (storedPhone) setPhone(storedPhone);
+    }
     const loadProfile = async () => {
       const token = localStorage.getItem("hasi-token");
       if (!token) return;
@@ -75,7 +83,13 @@ export function MyMessagesWidget() {
     window.addEventListener(SENT_EVENT, onSent); window.addEventListener("hasi-auth-changed", onAuth); document.addEventListener("visibilitychange", onVisible);
     return () => { window.clearInterval(timer); window.removeEventListener(SENT_EVENT, onSent); window.removeEventListener("hasi-auth-changed", onAuth); document.removeEventListener("visibilitychange", onVisible); };
   }, [refresh]);
-  useEffect(() => { openRef.current = open; if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [open, messages]);
+  useEffect(() => {
+    openRef.current = open;
+    if (open) {
+      const scroll = () => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      requestAnimationFrame(scroll);
+    }
+  }, [open, messages]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setSuccess("");
@@ -101,10 +115,10 @@ export function MyMessagesWidget() {
         <header className="flex items-center justify-between bg-gradient-to-r from-violet-700 to-indigo-700 px-4 py-3 text-white"><div><h2 className="text-sm font-bold">Онлайн-чат HASI.TJ</h2><p className="text-xs text-violet-100">Напишите нам — мы поможем</p></div><button type="button" onClick={toggle} aria-label="Закрыть чат" className="rounded-full p-2 hover:bg-white/20"><X className="h-4 w-4" /></button></header>
         <div className="min-h-28 flex-1 space-y-3 overflow-y-auto p-4">
           {!messages.length ? <p className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">Здравствуйте! Напишите вопрос о товаре, заказе или доставке.</p> : null}
-          {messages.map((item) => <article key={item.id} className="space-y-2"><div className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-violet-100 px-3 py-2 text-sm text-violet-950 dark:bg-violet-900/40 dark:text-violet-100"><p className="whitespace-pre-wrap break-words">{item.message}</p><time className="mt-1 block text-[10px] opacity-60">{new Date(item.createdAt).toLocaleString("ru-RU")}</time></div>{item.isReplied && item.replyText ? <div className="max-w-[88%] rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"><p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Ответ HASI.TJ</p><p className="whitespace-pre-wrap break-words">{item.replyText}</p>{item.repliedAt ? <time className="mt-1 block text-[10px] opacity-60">{new Date(item.repliedAt).toLocaleString("ru-RU")}</time> : null}</div> : <p className="text-xs text-slate-500">Ожидаем ответ администратора…</p>}</article>)}<div ref={bottomRef}/>
+          {messages.slice().reverse().map((item) => <article key={item.id} className="space-y-2"><div className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-violet-100 px-3 py-2 text-sm text-violet-950 dark:bg-violet-900/40 dark:text-violet-100"><p className="whitespace-pre-wrap break-words">{item.message}</p><time className="mt-1 block text-[10px] opacity-60">{new Date(item.createdAt).toLocaleString("ru-RU")}</time></div>{item.isReplied && item.replyText ? <div className="max-w-[88%] rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"><p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Ответ HASI.TJ</p><p className="whitespace-pre-wrap break-words">{item.replyText}</p>{item.repliedAt ? <time className="mt-1 block text-[10px] opacity-60">{new Date(item.repliedAt).toLocaleString("ru-RU")}</time> : null}</div> : <p className="text-xs text-slate-500">Ожидаем ответ администратора…</p>}</article>)}<div ref={bottomRef}/>
         </div>
         <form onSubmit={submit} className="space-y-2 border-t border-slate-200 p-3 dark:border-slate-700">
-          {!isLoggedIn ? <div className="grid grid-cols-2 gap-2"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ваше имя" aria-label="Ваше имя" maxLength={200} required className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"/><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Телефон" aria-label="Телефон" maxLength={100} required className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"/></div> : <p className="text-xs text-slate-500">Вы вошли в аккаунт{name ? ` как ${name}` : ""}</p>}
+          {!isLoggedIn && (!name.trim() || !phone.trim()) ? <div className="grid grid-cols-2 gap-2"><input value={name} onChange={(e) => { setName(e.target.value); localStorage.setItem(GUEST_NAME_KEY, e.target.value); }} placeholder="Ваше имя" aria-label="Ваше имя" maxLength={200} required className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"/><input value={phone} onChange={(e) => { setPhone(e.target.value); localStorage.setItem(GUEST_PHONE_KEY, e.target.value); }} placeholder="Телефон" aria-label="Телефон" maxLength={100} required className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"/></div> : <p className="text-xs text-slate-500">{isLoggedIn ? `Вы вошли в аккаунт${name ? ` как ${name}` : ""}` : `Готово, ${name || "гость"}. Напишите сообщение ниже.`}</p>}
           <div className="flex items-end gap-2"><textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Напишите сообщение…" aria-label="Сообщение" rows={2} maxLength={2000} required className="min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"/><button disabled={sending} type="submit" aria-label="Отправить сообщение" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-700 text-white hover:bg-violet-600 disabled:opacity-60">{sending ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4"/>}</button></div>
           {error ? <p role="alert" className="text-xs text-rose-600">{error}</p> : null}{success ? <p role="status" className="text-xs text-emerald-600">{success}</p> : null}
         </form>

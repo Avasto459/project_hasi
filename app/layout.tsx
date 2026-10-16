@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { StoreProvider } from "@/components/store-provider";
 import "./globals.css";
+import { MyMessagesWidget } from "@/components/my-messages-widget";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           disableTransitionOnChange
         >
           <StoreProvider>{children}</StoreProvider>
+          <MyMessagesWidget />
         </ThemeProvider>
       </body>
     </html>

@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { NextResponse } from "next/server";
 import { isAppRole, type AppRole } from "@/lib/roles";
 import { getJwtSecret, isPrimaryAdminEmail } from "@/lib/jwt-secret";
 
@@ -91,5 +92,15 @@ export function sessionCookieOptions(request: Request) {
     // На Vercel всегда https → secure: true. Локально по http — false,
     // иначе браузер не сохранит куку и будет «Сессия недействительна».
     secure: process.env.NODE_ENV === "production" ? true : isHttps,
-  };
+  } as const;
+}
+
+/**
+ * Очищает недействительную/истекшую session cookie на ответе.
+ * Используется при 401, чтобы браузер удалил старую hasi-session
+ * вместо показа ошибки интерфейса.
+ */
+export function clearSessionCookie(response: NextResponse, request: Request): NextResponse {
+  response.cookies.set(SESSION_COOKIE_NAME, "", { ...sessionCookieOptions(request), maxAge: 0 });
+  return response;
 }
