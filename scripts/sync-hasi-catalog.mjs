@@ -88,7 +88,28 @@ try {
   const liveProducts = rawProducts.map((p) => {
     const name = plainText(p.name) || p.sku || `Товар ${p.id}`;
     const slug = slugify(p.slug || name);
-    const images = (p.images || []).map((i) => i.src).filter((src) => typeof src === 'string' && /^https:\/\//.test(src));
+    // Нормализация картинок: в БД сохраняем ТОЛЬКО полные внешние URL вида
+    // https://hasi.tj/wp-content/uploads/..., никогда локальные /products/... пути.
+    // Обрабатываем все формы, которые может вернуть WooCommerce API:
+    // https://..., http://... (апгрейд до https), //host/... (добавляем https:),
+    // /wp-content/... и wp-content/... (добавляем https://hasi.tj).
+    const toAbsoluteImageUrl = (raw) => {
+      if (typeof raw !== 'string') return '';
+      const src = raw.trim();
+      if (!src) return '';
+      if (/^https:\/\//i.test(src)) return src;
+      if (/^http:\/\//i.test(src)) return src.replace(/^http:\/\//i, 'https://');
+      if (src.startsWith('//')) return `https:${src}`;
+      if (src.startsWith('/')) return `${site}${src}`;
+      if (/^[a-z0-9-]+\.[a-z]{2,}\//i.test(src)) return `https://${src}`;
+      if (/^[\w][\w\-./]*\.(jpe?g|png|webp|gif|avif|svg)(\?.*)?$/i.test(src)) return `${site}/${src.replace(/^\.\//, '')}`;
+      // Остальное (data:, blob:, чужие https — тоже оставляем, остальное отбрасываем).
+      if (/^(data:image\/|blob:|https:\/\/)/i.test(src)) return src;
+      return '';
+    };
+    const images = (p.images || [])
+      .map((i) => toAbsoluteImageUrl(i?.src || i?.thumbnail || i?.url || ''))
+      .filter(Boolean);
     const cats = Array.isArray(p.categories) ? p.categories : [];
     const cat = cats[0] || { name: 'Hikvision', slug: 'hikvision' };
     const description = plainText(p.description || p.short_description || name);
