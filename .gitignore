@@ -20,6 +20,9 @@
 # production
 /build
 /data/
+# Но актуальный каталог обязан ехать на Vercel вместе с деплоем:
+!data/
+!data/hasi.db
 
 # misc
 .DS_Store

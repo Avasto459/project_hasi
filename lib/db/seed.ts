@@ -26,6 +26,21 @@ const settings: Record<string,string> = {
   currency: "TJS", telegram_bot_token: "", telegram_chat_id: ""
 };
 
+// Приведение адреса картинки к полному внешнему URL — та же логика, что в
+// scripts/sync-hasi-catalog.mjs: локальные пути (/products/..., products/...)
+// превращаются в прямые ссылки https://hasi.tj/..., готовые для Vercel.
+function toSeedImageUrl(raw: unknown): string {
+  const value = String(raw || "").trim();
+  if (/^https:\/\//i.test(value)) return value;
+  if (/^http:\/\//i.test(value)) return value.replace(/^http:\/\//i, "https://");
+  if (value.startsWith("//")) return `https:${value}`;
+  if (!value || /^(data:image\/|blob:)/i.test(value)) return "";
+  const host = "https://hasi.tj";
+  if (value.startsWith("/")) return `${host}${value}`;
+  if (/^hasi\.tj\//i.test(value)) return `https://${value}`;
+  return `${host}/${value}`;
+}
+
 let ready: Promise<void> | null = null;
 
 export async function initializeDatabase() {

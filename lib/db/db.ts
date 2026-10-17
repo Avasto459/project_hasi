@@ -1,8 +1,36 @@
 import { createClient, type Client } from "@libsql/client"
 import { existsSync, copyFileSync } from "node:fs"
+import { join } from "node:path"
 
 declare global {
   var __hasiLibsqlClient: Client | undefined
+}
+
+// Абсолютный путь к закоммиченной базе: в serverless-бандле Vercel cwd может
+// отличаться, поэтому опираемся на process.cwd() (корень проекта, куда
+// outputFileTracingIncludes упаковывает ./data/hasi.db).
+function bundledDbPath(): string {
+  return join(process.cwd(), "data", "hasi.db")
+}
+
+function tmpDbPath(): string {
+  return "/tmp/hasi.db"
+}
+
+// ФС Vercel только для чтения — SQLite нужен writable-файл, поэтому копируем
+// закоммиченную базу в /tmp один раз и открываем копию.
+function writableFileDb(): Client {
+  const src = bundledDbPath()
+  const dst = tmpDbPath()
+  if (existsSync(dst)) return createClient({ url: `file:${dst}` })
+  try {
+    if (existsSync(src)) copyFileSync(src, dst)
+  } catch {
+    // Если копия не удалась (например, локально без прав), пробуем оригинал.
+  }
+  if (existsSync(dst)) return createClient({ url: `file:${dst}` })
+  if (existsSync(src)) return createClient({ url: `file:${src}` })
+  throw new Error(`База данных не найдена: ${src}`)
 }
 
 function isVercel(): boolean {
@@ -15,8 +43,9 @@ function isLocalDevelopment(): boolean {
 
 function isLocalDbAllowed(): boolean {
   // USE_LOCAL_DB разрешён в любой среде, включая Vercel — так committed
-  // data/hasi.db (закоммичен через git add -f) можно читать на продакшене.
-  return process.env.USE_LOCAL_DB === "true"
+  // data/hasi.db (закоммичен в git) читается и на продакшене.
+  // Без флага на Vercel тоже читаем bundled-файл (см. createDb).
+  return process.env.USE_LOCAL_DB === "true" || isVercel()
 }
 
 function createDb(): Client {
@@ -25,31 +54,17 @@ function createDb(): Client {
   const forceLocal = process.env.USE_LOCAL_DB === "true"
 
   // Локальный файловый SQLite при USE_LOCAL_DB=true (в т.ч. на Vercel,
-  // где data/hasi.db закоммичен в git). На Vercel ФС только для чтения,
-  // поэтому копируем committed базу в /tmp и открываем writable копию.
-  if (forceLocal) {
-    let dbPath = "file:data/hasi.db"
-    if (isVercel()) {
-      const src = "data/hasi.db"
-      const dst = "/tmp/hasi.db"
-      try {
-        if (existsSync(src)) copyFileSync(src, dst)
-        dbPath = `file:${dst}`
-      } catch {
-        // Если копия не удалась, пробуем открыть оригинал.
-        dbPath = "file:data/hasi.db"
-      }
-    }
-    return createClient({ url: dbPath })
-  }
+  // где data/hasi.db закоммичен в git и упакован через outputFileTracingIncludes).
+  if (forceLocal) return writableFileDb()
 
-  // На Vercel — Turso, если заданы; иначе память (пусто, без товаров).
+  // На Vercel — Turso, если заданы; иначе закоммиченная data/hasi.db.
+  // Пустая in-memory база больше не используется: именно она была причиной
+  // расхождения (Vercel показывал демо-заглушки вместо 47 актуальных товаров).
   if (isVercel()) {
     if (url && token) {
       return createClient({ url, authToken: token })
     }
-    // Безопасный fallback для сборки, когда Turso ещё не заданы — не падаем.
-    return createClient({ url: ":memory:" })
+    return writableFileDb()
   }
 
   // Иначе Turso, если заданы.
@@ -57,6 +72,14 @@ function createDb(): Client {
     return createClient({ url, authToken: token })
   }
 
+  // Локальный прод/дев без Turso — закоммиченный файл, иначе память (только для dev).
+  if (existsSync(bundledDbPath()) || existsSync("data/hasi.db")) {
+    try {
+      return writableFileDb()
+    } catch {
+      return createClient({ url: "file:data/hasi.db" })
+    }
+  }
   // Локальная разработка без Turso — в памяти, чтобы не пытаться открыть файл.
   return createClient({ url: ":memory:" })
 }
