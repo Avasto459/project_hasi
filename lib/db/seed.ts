@@ -91,7 +91,9 @@ export async function initializeDatabase() {
             }
             const name = String(p.name || p.sku || `Товар ${p.id}`);
             const productSlug = String(p.slug || name).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || `item-${p.id}`;
-            const images = (Array.isArray(p.images) ? p.images : []).map((i: any) => i.src).filter((src: any) => typeof src === "string" && /^https:\/\//.test(src));
+            const images = (Array.isArray(p.images) ? p.images : [])
+              .map((i: any) => toSeedImageUrl(i?.src ?? i?.thumbnail ?? i?.url ?? ""))
+              .filter((src: any) => typeof src === "string" && src.length > 0);
             const minor = Number(p.prices?.currency_minor_unit ?? 2);
             const rawPrice = Number(p.prices?.price ?? p.price ?? 0);
             const price = Number.isFinite(rawPrice) ? rawPrice / (10 ** minor) : 0;

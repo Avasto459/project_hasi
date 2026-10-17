@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { StoreProvider } from "@/components/store-provider";
 import "./globals.css";
+import type { ReactNode } from "react";
 import { MyMessagesWidget } from "@/components/my-messages-widget";
 
 const geistSans = Geist({
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
   keywords: ["HASI.TJ", "видеонаблюдение", "IP-камеры", "Hikvision", "Таджикистан"],
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="ru"
