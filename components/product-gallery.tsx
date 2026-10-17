@@ -7,7 +7,17 @@ import { ProductImagePlaceholder } from "@/components/product-image";
 import { productImageSrc } from "@/lib/product-images";
 
 export function ProductGallery({ images, name }: { images: string[]; name: string }) {
-  const normalized = [...new Set(images.map(productImageSrc).filter(Boolean))];
+  const normalized: string[] = [];
+  for (const raw of images) {
+    const value = productImageSrc(raw);
+    if (!value || normalized.includes(value)) continue;
+    normalized.push(value);
+    // Локальный путь: добавляем внешний fallback на hasi.tj.
+    if (value.startsWith("/") && !value.startsWith("//")) {
+      const external = `https://hasi.tj${value}`;
+      if (!normalized.includes(external)) normalized.push(external);
+    }
+  }
   const sources = normalized.length ? normalized : [""];
   const [active, setActive] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);

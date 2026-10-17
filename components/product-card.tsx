@@ -25,7 +25,18 @@ export function ProductCard({ product }: { product: ProductCardProduct }) {
   const [error, setError] = useState("");
   const [added, setAdded] = useState(false);
   const [adding, setAdding] = useState(false);
-  const sources = [...new Set([product.image, ...(product.images || [])].filter(Boolean).map(productImageSrc).filter(Boolean))];
+  const rawSources = [product.image, ...(product.images || [])].filter(Boolean);
+  const sources: string[] = [];
+  for (const raw of rawSources) {
+    const normalized = productImageSrc(raw);
+    if (!normalized || sources.includes(normalized)) continue;
+    sources.push(normalized);
+    // Локальный путь (например /products/...): пробуем его сначала, а если не загрузится — внешний URL на hasi.tj.
+    if (normalized.startsWith("/") && !normalized.startsWith("//")) {
+      const external = `https://hasi.tj${normalized}`;
+      if (!sources.includes(external)) sources.push(external);
+    }
+  }
   const badge = product.type === "service"
     ? { text: "Услуга", className: "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/30" }
     : stockBadge(product.stock);
