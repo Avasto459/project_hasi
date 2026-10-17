@@ -31,12 +31,22 @@ let ready: Promise<void> | null = null;
 export async function initializeDatabase() {
   if (ready) return ready;
   ready = (async () => {
-    await initializeSchema();
-    for (let i=0;i<categories.length;i++) {
-      const [id,slug,name,subtitle] = categories[i];
-      await db.execute({sql:`INSERT INTO categories (id,slug,name,subtitle,description,image,sort,status) VALUES (?,?,?,?,?,?,?,'published') ON CONFLICT(id) DO NOTHING`,args:[id,slug,name,subtitle,subtitle,"",i]});
+    try { await initializeSchema(); } catch (error) {
+      console.warn("Пропущена инициализация схемы (БД только для чтения или уже инициализирована):", error instanceof Error ? error.message : error);
     }
-    for (const [key,value] of Object.entries(settings)) await db.execute({sql:`INSERT INTO settings(key,value,updatedAt) VALUES(?,?,?) ON CONFLICT(key) DO NOTHING`,args:[key,value,new Date().toISOString()]});
+    try {
+      for (let i=0;i<categories.length;i++) {
+        const [id,slug,name,subtitle] = categories[i];
+        await db.execute({sql:`INSERT INTO categories (id,slug,name,subtitle,description,image,sort,status) VALUES (?,?,?,?,?,?,?,'published') ON CONFLICT(id) DO NOTHING`,args:[id,slug,name,subtitle,subtitle,"",i]});
+      }
+    } catch (error) {
+      console.warn("Пропущено заполнение категорий (БД только для чтения):", error instanceof Error ? error.message : error);
+    }
+    try {
+      for (const [key,value] of Object.entries(settings)) await db.execute({sql:`INSERT INTO settings(key,value,updatedAt) VALUES(?,?,?) ON CONFLICT(key) DO NOTHING`,args:[key,value,new Date().toISOString()]});
+    } catch (error) {
+      console.warn("Пропущено заполнение настроек (БД только для чтения):", error instanceof Error ? error.message : error);
+    }
     const count = await db.execute(`SELECT COUNT(*) AS count FROM products`);
     // A fresh database first tries to pull the real catalogue, including live product photos and prices.
     // If the public WooCommerce API is unavailable, retain the bundled fallback catalogue.
@@ -83,10 +93,14 @@ export async function initializeDatabase() {
         console.warn("HASI live catalogue could not be fetched; using bundled seed products:", error instanceof Error ? error.message : error);
       }
       if (!seededFromLiveSite) {
-        for (const p of seedProducts) {
-          const cat = categories.find(x => x[1] === p.category);
-          if (!cat) continue;
-          await db.execute({sql:`INSERT INTO products(id,slug,name,shortDescription,description,sku,brand,images,specifications,price,previousPrice,image,sourceUrl,categoryId,featured,rating,stock,isPublished,createdAt) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(slug) DO NOTHING`,args:[`seed-${p.slug}`,p.slug,p.name,p.short,p.short,p.sku,p.brand,JSON.stringify([p.image]),JSON.stringify(p.specs),p.price,p.previousPrice ?? null,p.image,"",cat[0],p.featured ? 1 : 0,5,p.stock,1,new Date().toISOString()]});
+        try {
+          for (const p of seedProducts) {
+            const cat = categories.find(x => x[1] === p.category);
+            if (!cat) continue;
+            await db.execute({sql:`INSERT INTO products(id,slug,name,shortDescription,description,sku,brand,images,specifications,price,previousPrice,image,sourceUrl,categoryId,featured,rating,stock,isPublished,createdAt) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(slug) DO NOTHING`,args:[`seed-${p.slug}`,p.slug,p.name,p.short,p.short,p.sku,p.brand,JSON.stringify([p.image]),JSON.stringify(p.specs),p.price,p.previousPrice ?? null,p.image,"",cat[0],p.featured ? 1 : 0,5,p.stock,1,new Date().toISOString()]});
+          }
+        } catch (error) {
+          console.warn("Пропущено заполнение демо-товаров (БД только для чтения):", error instanceof Error ? error.message : error);
         }
       }
     }

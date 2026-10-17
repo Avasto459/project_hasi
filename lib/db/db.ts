@@ -1,4 +1,5 @@
 import { createClient, type Client } from "@libsql/client"
+import { existsSync, copyFileSync } from "node:fs"
 
 declare global {
   var __hasiLibsqlClient: Client | undefined
@@ -13,7 +14,9 @@ function isLocalDevelopment(): boolean {
 }
 
 function isLocalDbAllowed(): boolean {
-  return process.env.USE_LOCAL_DB === "true" && isLocalDevelopment()
+  // USE_LOCAL_DB разрешён в любой среде, включая Vercel — так committed
+  // data/hasi.db (закоммичен через git add -f) можно читать на продакшене.
+  return process.env.USE_LOCAL_DB === "true"
 }
 
 function createDb(): Client {
@@ -21,18 +24,32 @@ function createDb(): Client {
   const token = process.env.TURSO_AUTH_TOKEN?.trim()
   const forceLocal = process.env.USE_LOCAL_DB === "true"
 
-  // На Vercel (в т.ч. во время сборки) НИКОГДА не открываем локальный файл file:data/hasi.db.
+  // Локальный файловый SQLite при USE_LOCAL_DB=true (в т.ч. на Vercel,
+  // где data/hasi.db закоммичен в git). На Vercel ФС только для чтения,
+  // поэтому копируем committed базу в /tmp и открываем writable копию.
+  if (forceLocal) {
+    let dbPath = "file:data/hasi.db"
+    if (isVercel()) {
+      const src = "data/hasi.db"
+      const dst = "/tmp/hasi.db"
+      try {
+        if (existsSync(src)) copyFileSync(src, dst)
+        dbPath = `file:${dst}`
+      } catch {
+        // Если копия не удалась, пробуем открыть оригинал.
+        dbPath = "file:data/hasi.db"
+      }
+    }
+    return createClient({ url: dbPath })
+  }
+
+  // На Vercel — Turso, если заданы; иначе память (пусто, без товаров).
   if (isVercel()) {
     if (url && token) {
       return createClient({ url, authToken: token })
     }
     // Безопасный fallback для сборки, когда Turso ещё не заданы — не падаем.
     return createClient({ url: ":memory:" })
-  }
-
-  // Локально: файловый SQLite только при USE_LOCAL_DB=true.
-  if (forceLocal) {
-    return createClient({ url: "file:data/hasi.db" })
   }
 
   // Иначе Turso, если заданы.
