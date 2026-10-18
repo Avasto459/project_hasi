@@ -110,7 +110,37 @@ export async function getCategoryPath(slug:string):Promise<Category[]>{
 }
 
 export type ProductQuery={categorySlug?:string;categoryId?:string;search?:string;featured?:boolean;brand?:string;minPrice?:number;maxPrice?:number;inStock?:boolean;sort?:"price-asc"|"price-desc"|"name"|"newest";limit?:number;ids?:string[];type?:ItemType};
-function mapProduct(x:Record<string,unknown>):Product{return {...x,images:parseJson<string[]>(x.images,[]),specifications:parseJson<Record<string,string>>(x.specifications,{}),price:Number(x.price),previousPrice:x.previousPrice==null?null:Number(x.previousPrice),featured:Number(x.featured||0),rating:Number(x.rating||0),stock:Number(x.stock||0),isPublished:Number(x.isPublished??1),type:x.type==="service"?"service":"product"} as Product}
+const HASI_IMAGE_HOST = "https://hasi.tj";
+
+/** Превращает относительный путь картинки (например, /uploads/products/abc.jpg) в полный URL https://hasi.tj/.... Уже полные URL оставляет без изменений. */
+function toAbsoluteImageUrl(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const src = raw.trim();
+  if (!src) return "";
+  if (/^https:\/\//i.test(src)) return src;
+  if (/^http:\/\//i.test(src)) return src.replace(/^http:\/\//i, "https://");
+  if (src.startsWith("//")) return `https:${src}`;
+  if (src.startsWith("/")) return `${HASI_IMAGE_HOST}${src}`;
+  if (/^[a-z0-9-]+\.[a-z]{2,}\//i.test(src)) return `https://${src}`;
+  return "";
+}
+
+function mapProduct(x: Record<string, unknown>): Product {
+  const images = parseJson<string[]>(x.images, []).map(toAbsoluteImageUrl).filter(Boolean);
+  return {
+    ...x,
+    image: toAbsoluteImageUrl(x.image) || (images[0] || ""),
+    images,
+    specifications: parseJson<Record<string, string>>(x.specifications, {}),
+    price: Number(x.price),
+    previousPrice: x.previousPrice == null ? null : Number(x.previousPrice),
+    featured: Number(x.featured || 0),
+    rating: Number(x.rating || 0),
+    stock: Number(x.stock || 0),
+    isPublished: Number(x.isPublished ?? 1),
+    type: x.type === "service" ? "service" : "product",
+  } as Product;
+}
 export async function getProducts(q:ProductQuery={}){await ready();const w:string[]=["p.isPublished=1"];const a:(string|number)[]=[];if(q.categorySlug){w.push("(c.slug=? OR c.parentId=(SELECT id FROM categories WHERE slug=?))");a.push(q.categorySlug,q.categorySlug)}if(q.type){w.push("p.type=?");a.push(q.type)}if(q.categoryId){w.push("p.categoryId=?");a.push(q.categoryId)}if(q.search){w.push("(p.name LIKE ? OR p.description LIKE ? OR p.sku LIKE ? OR p.brand LIKE ?)");const s=`%${q.search}%`;a.push(s,s,s,s)}if(q.featured)w.push("p.featured=1");if(q.brand){w.push("p.brand=?");a.push(q.brand)}if(q.minPrice!==undefined){w.push("p.price>=?");a.push(q.minPrice)}if(q.maxPrice!==undefined){w.push("p.price<=?");a.push(q.maxPrice)}if(q.inStock)w.push("p.stock>0");if(q.ids?.length){w.push(`p.id IN (${q.ids.map(()=>"?").join(",")})`);a.push(...q.ids)}const order=q.sort==="price-asc"?"p.price ASC":q.sort==="price-desc"?"p.price DESC":q.sort==="name"?"p.name ASC":"datetime(p.createdAt) DESC";const limit=Math.min(100,Math.max(1,q.limit??100));const r=await db.execute({sql:`SELECT p.*,c.name AS categoryName,c.slug AS categorySlug FROM products p JOIN categories c ON c.id=p.categoryId WHERE ${w.join(" AND ")} ORDER BY ${order} LIMIT ?`,args:[...a,limit]});return r.rows.map(x=>mapProduct(row<Record<string,unknown>>(x)))}
 export async function getProductsSafe(q:ProductQuery={}){return getProducts(q)}
 export async function getCategoriesSafe(){return getCategories()}
