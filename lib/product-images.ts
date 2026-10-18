@@ -9,6 +9,13 @@ export function productImageSrc(source: string) {
   if (value === "/hasi-logo.png" || (/^\/products\/.+\.svg(\?.*)?$/i.test(value))) return value;
   if (value.startsWith("public/")) return `https://hasi.tj/${value.slice("public/".length)}`;
   if (value.startsWith("./")) return `https://hasi.tj/${value.slice(2)}`;
-  if (value.startsWith("/")) return `https://hasi.tj${value}`;
+  if (value.startsWith("/")) {
+    // WooCommerce хранит медиа в /wp-content/uploads/...; если в БД лежит
+    // укороченный путь /uploads/..., подставляем wp-content/ между хостом и путём.
+    if (value.startsWith("/uploads/") && !value.startsWith("/wp-content/")) {
+      return `https://hasi.tj/wp-content${value}`;
+    }
+    return `https://hasi.tj${value}`;
+  }
   return `https://hasi.tj/${value}`;
 }

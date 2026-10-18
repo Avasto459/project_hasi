@@ -100,7 +100,14 @@ try {
       if (/^https:\/\//i.test(src)) return src;
       if (/^http:\/\//i.test(src)) return src.replace(/^http:\/\//i, 'https://');
       if (src.startsWith('//')) return `https:${src}`;
-      if (src.startsWith('/')) return `${site}${src}`;
+      if (src.startsWith('/')) {
+        // WooCommerce хранит медиа в /wp-content/uploads/...; если в БД лежит
+        // укороченный путь /uploads/..., подставляем wp-content/ между хостом и путём.
+        if (src.startsWith('/uploads/') && !src.startsWith('/wp-content/')) {
+          return `${site}/wp-content${src}`;
+        }
+        return `${site}${src}`;
+      }
       if (/^[a-z0-9-]+\.[a-z]{2,}\//i.test(src)) return `https://${src}`;
       if (/^[\w][\w\-./]*\.(jpe?g|png|webp|gif|avif|svg)(\?.*)?$/i.test(src)) return `${site}/${src.replace(/^\.\//, '')}`;
       // Остальное (data:, blob:, чужие https — тоже оставляем, остальное отбрасываем).

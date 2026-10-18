@@ -36,7 +36,14 @@ function toSeedImageUrl(raw: unknown): string {
   if (value.startsWith("//")) return `https:${value}`;
   if (!value || /^(data:image\/|blob:)/i.test(value)) return "";
   const host = "https://hasi.tj";
-  if (value.startsWith("/")) return `${host}${value}`;
+  if (value.startsWith("/")) {
+    // WooCommerce хранит медиа в /wp-content/uploads/...; если в БД лежит
+    // укороченный путь /uploads/..., подставляем wp-content/ между хостом и путём.
+    if (value.startsWith("/uploads/") && !value.startsWith("/wp-content/")) {
+      return `${host}/wp-content${value}`;
+    }
+    return `${host}${value}`;
+  }
   if (/^hasi\.tj\//i.test(value)) return `https://${value}`;
   return `${host}/${value}`;
 }

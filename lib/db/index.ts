@@ -112,7 +112,9 @@ export async function getCategoryPath(slug:string):Promise<Category[]>{
 export type ProductQuery={categorySlug?:string;categoryId?:string;search?:string;featured?:boolean;brand?:string;minPrice?:number;maxPrice?:number;inStock?:boolean;sort?:"price-asc"|"price-desc"|"name"|"newest";limit?:number;ids?:string[];type?:ItemType};
 const HASI_IMAGE_HOST = "https://hasi.tj";
 
-/** Превращает относительный путь картинки (например, /uploads/products/abc.jpg) в полный URL https://hasi.tj/.... Уже полные URL оставляет без изменений. */
+/** Превращает относительный путь картинки в полный абсолютный URL на hasi.tj.
+ *  /uploads/products/abc.jpg → https://hasi.tj/wp-content/uploads/products/abc.jpg
+ *  Уже полные URL оставляет без изменений. */
 function toAbsoluteImageUrl(raw: unknown): string {
   if (typeof raw !== "string") return "";
   const src = raw.trim();
@@ -120,7 +122,14 @@ function toAbsoluteImageUrl(raw: unknown): string {
   if (/^https:\/\//i.test(src)) return src;
   if (/^http:\/\//i.test(src)) return src.replace(/^http:\/\//i, "https://");
   if (src.startsWith("//")) return `https:${src}`;
-  if (src.startsWith("/")) return `${HASI_IMAGE_HOST}${src}`;
+  if (src.startsWith("/")) {
+    // WooCommerce хранит медиа в /wp-content/uploads/...; если в БД лежит
+    // укороченный путь /uploads/..., подставляем wp-content/ между хостом и путём.
+    if (src.startsWith("/uploads/") && !src.startsWith("/wp-content/")) {
+      return `${HASI_IMAGE_HOST}/wp-content${src}`;
+    }
+    return `${HASI_IMAGE_HOST}${src}`;
+  }
   if (/^[a-z0-9-]+\.[a-z]{2,}\//i.test(src)) return `https://${src}`;
   return "";
 }
