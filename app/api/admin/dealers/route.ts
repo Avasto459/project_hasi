@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     await requireAdmin(request);
     const [dealers, defaultLimit, totals] = await Promise.all([listDealersAdmin(), getDefaultLimit(), getHasiTotals()]);
     return { dealers, defaultLimit, totals };
-  });
+  }, 200, { "Cache-Control": "private, no-store, no-cache, must-revalidate" });
 }
 
 /**
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       identity: b.identity ?? { fullName: "", passportNumber: "" },
       scans,
     });
-    return { success: true, id };
+    const dealers = await listDealersAdmin();
+    return { success: true, id, dealers };
   }, 201);
 }

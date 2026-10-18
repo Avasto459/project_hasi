@@ -20,13 +20,13 @@ export async function readJson<T = Record<string, unknown>>(request: Request): P
 }
 
 /** Единый обработчик: StoreError → его статус, прочее → 500 без утечки деталей. */
-export async function respond<T>(work: () => Promise<T>, status = 200) {
+export async function respond<T>(work: () => Promise<T>, status = 200, headers: Record<string, string> = {}) {
   try {
-    return NextResponse.json(await work(), { status });
+    return NextResponse.json(await work(), { status, headers });
   } catch (error) {
-    if (error instanceof StoreError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof StoreError) return NextResponse.json({ error: error.message }, { status: error.status, headers });
     console.error("HASI API error:", error);
-    return NextResponse.json({ error: "Внутренняя ошибка. Повторите попытку позже." }, { status: 500 });
+    return NextResponse.json({ error: "Внутренняя ошибка. Повторите попытку позже." }, { status: 500, headers });
   }
 }
 
