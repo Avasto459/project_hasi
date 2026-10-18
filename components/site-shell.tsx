@@ -210,7 +210,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             <nav className="grid grid-cols-2 gap-2">
               {visibleLinks.map((link) => <Link key={link.href} href={link.href} onClick={closeMenu} className="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">{link.label}</Link>)}
               <Link href="/catalog#categories" onClick={closeMenu} className="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Категории</Link>
-              <Link href={user ? "/account" : "/login"} onClick={closeMenu} className="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">{user ? "Личный кабинет" : "Войти"}</Link>
+              <Link href={user ? (user.role === "DEALER" ? "/dealer/dashboard" : "/account") : "/login"} onClick={closeMenu} className="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">{user ? (user.role === "DEALER" ? "Кабинет дилера" : "Личный кабинет") : "Войти"}</Link>
               <Link href="/cart" onClick={closeMenu} className="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Корзина ({count})</Link>
               <Link href="/favorites" onClick={closeMenu} className="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">Избранное ({favoriteCount})</Link>
             </nav>
@@ -261,7 +261,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       ) : (
       <nav aria-label="Мобильная навигация" className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-slate-200 bg-white/95 px-2 pt-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:hidden dark:border-slate-800 dark:bg-slate-950/95">
         {mobileNavigation.map(({ label, href, icon: Icon }) => {
-          const target = label === "Профиль" ? (user ? "/account" : "/login") : href;
+          const target = label === "Профиль" ? (user ? (user.role === "DEALER" ? "/dealer/dashboard" : "/account") : "/login") : href;
           const active = pathname === target
             || (target === "/catalog" && pathname.startsWith("/category/"))
             || (target === "/account" && user && pathname.startsWith("/account"));

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ChevronDown, Eye, EyeOff } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
+import { dashboardPathForRole } from "@/lib/roles";
 
 type Country = {
   code: string;
@@ -129,7 +130,7 @@ export default function RegisterPage() {
       if (result.autoLogin && result.token) {
         localStorage.setItem("hasi-token", result.token);
         window.dispatchEvent(new Event("hasi-auth-changed"));
-        router.push(result.user?.role === "ADMIN" ? "/admin" : "/account");
+        router.push(dashboardPathForRole(result.user?.role));
         return;
       }
       if (result.requiresVerification) setVerificationRequired(true);
@@ -159,7 +160,7 @@ export default function RegisterPage() {
       // П.1: авто-вход после подтверждения — редирект по роли, не на /login.
       localStorage.setItem("hasi-token", result.token);
       window.dispatchEvent(new Event("hasi-auth-changed"));
-      router.push(result.user?.role === "ADMIN" ? "/admin" : "/account");
+      router.push(dashboardPathForRole(result.user?.role));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Не удалось подтвердить email.");
     } finally {
