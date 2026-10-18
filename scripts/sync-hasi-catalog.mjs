@@ -71,11 +71,15 @@ function priceOf(p) {
 }
 
 try {
+  console.log('[sync] STEP fetchAllProducts...');
+  const rawProducts = await fetchAllProducts();
+  console.log(`[sync] fetchAllProducts OK: ${rawProducts.length} items`);
+
   // Minimal schema bootstrap for a fresh local dev database. Full schema is created by the app.
+  console.log('[sync] STEP schema bootstrap...');
   await db.execute(`CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, subtitle TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', image TEXT NOT NULL DEFAULT '', sourceUrl TEXT NOT NULL DEFAULT '', sort INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'published')`);
   await db.execute(`CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, shortDescription TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', sku TEXT NOT NULL DEFAULT '', brand TEXT NOT NULL DEFAULT '', images TEXT NOT NULL DEFAULT '[]', specifications TEXT NOT NULL DEFAULT '{}', price REAL NOT NULL DEFAULT 0, previousPrice REAL, image TEXT NOT NULL DEFAULT '', sourceUrl TEXT NOT NULL DEFAULT '', categoryId TEXT NOT NULL, featured INTEGER NOT NULL DEFAULT 0, rating REAL NOT NULL DEFAULT 0, stock INTEGER NOT NULL DEFAULT 0, isPublished INTEGER NOT NULL DEFAULT 1, createdAt TEXT NOT NULL, FOREIGN KEY(categoryId) REFERENCES categories(id))`);
-
-  const rawProducts = await fetchAllProducts();
+  console.log('[sync] schema bootstrap OK');
   let officialCategories = [];
   try {
     for (let page = 1; page <= 20; page++) {
@@ -128,6 +132,7 @@ try {
     return { id: `hasi-${slug}`, slug, name, sku, description, short, images, image: images[0] || '', sourceUrl: p.permalink || `${site}/?post_type=product&p=${p.id}`, categoryName: plainText(cat.name) || 'Каталог', categorySlug: slugify(cat.slug || cat.name), price, previousPrice: previous && previous > price ? previous : null, stock: p.is_in_stock ? 10 : 0, featured: Boolean(p.is_featured), createdAt: now };
   });
 
+  console.log('[sync] STEP categories upsert...');
   // Ensure categories are upserted before products reference them.
   const categories = new Map();
   for (const c of officialCategories) {
@@ -166,26 +171,32 @@ try {
     }
   }
 
+  console.log(`[sync] categories upsert OK: ${categories.size}`);
+  console.log('[sync] STEP products upsert...');
   const keepSlugs = new Set();
-  for (const p of liveProducts) {
+  // ON CONFLICT(slug) ignores the VALUES id when a conflict occurs, so we can skip
+  // the per-product SELECT and send all upserts as a single batch. This reduces ~94
+  // sequential HTTP round-trips (which caused UND_ERR_SOCKET on Turso keep-alive
+  // connections) down to one request.
+  const productStmts = liveProducts.map((p) => {
     keepSlugs.add(p.slug);
-    const old = await db.execute({ sql: 'SELECT id FROM products WHERE slug=? LIMIT 1', args: [p.slug] });
-    const id = old.rows[0]?.id ? String(old.rows[0].id) : p.id;
-    await db.execute({
+    return {
       sql: `INSERT INTO products(id,slug,name,shortDescription,description,sku,brand,images,specifications,price,previousPrice,image,sourceUrl,categoryId,featured,rating,stock,isPublished,createdAt)
             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(slug) DO UPDATE SET name=excluded.name,shortDescription=excluded.shortDescription,description=excluded.description,sku=excluded.sku,brand=excluded.brand,images=excluded.images,price=excluded.price,previousPrice=excluded.previousPrice,image=excluded.image,sourceUrl=excluded.sourceUrl,categoryId=excluded.categoryId,featured=excluded.featured,stock=excluded.stock,isPublished=1`,
       args: [
-        def(id, randomUUID()), def(p.slug, slugify(p.name)), def(p.name, `Товар ${p.id}`),
+        def(p.id, randomUUID()), def(p.slug, slugify(p.name)), def(p.name, `Товар ${p.id}`),
         def(p.short, ''), def(p.description, ''), def(p.sku, ''), def(p.brand, 'HASI Technology'),
         JSON.stringify(def(p.images, [])), JSON.stringify(def({ source: 'hasi.tj' }, { source: 'hasi.tj' })),
         def(p.price, 0), def(p.previousPrice, null), def(p.image, ''), def(p.sourceUrl, `${site}/?post_type=product&p=${p.id}`),
         def(categoryIds.get(p.categorySlug), 'hasi-cat-uncategorized'),
         def(p.featured ? 1 : 0, 0), def(5, 0), def(p.stock, 0), 1, def(p.createdAt, now)
       ],
-    });
-  }
+    };
+  });
+  if (productStmts.length) await db.batch(productStmts, 'write');
 
+  console.log(`[sync] products upsert OK: ${keepSlugs.size}`);
   // Delete products absent from the current live catalog. Keep order item snapshots, but clear stock ledgers that reference products.
   const all = await db.execute('SELECT id,slug FROM products');
   const stale = all.rows.filter((r) => !keepSlugs.has(String(r.slug)));
@@ -207,7 +218,10 @@ try {
   console.log(`Каталог HASI.TJ обновлён: ${count.rows[0].n} товаров, ${categories.size} категорий.`);
   console.log(`Источник: ${site}; база: ${useTurso ? 'Turso (remote)' : 'локальная data/hasi.db'}.`);
 } catch (error) {
-  console.error('Не удалось обновить каталог. Текущие товары не были очищены до успешного получения данных.', error?.message || error);
+  console.error('Не удалось обновить каталог. Текущие товары не были очищены до успешного получения данных.');
+  console.error('message:', error?.message || error);
+  if (error?.cause) console.error('cause:', error.cause?.code || error.cause?.message || error.cause);
+  console.error('stack:', error?.stack);
   process.exitCode = 1;
 } finally {
   await db.close();
