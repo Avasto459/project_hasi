@@ -37,7 +37,7 @@ function isVercel(): boolean {
   return process.env.VERCEL === "1"
 }
 
-function isLocalDevelopment(): boolean {
+export function isLocalDevelopment(): boolean {
   return process.env.NODE_ENV !== "production" && !isVercel()
 }
 
@@ -53,26 +53,26 @@ function createDb(): Client {
   const token = process.env.TURSO_AUTH_TOKEN?.trim()
   const forceLocal = process.env.USE_LOCAL_DB === "true"
 
-  // Локальный файловый SQLite при USE_LOCAL_DB=true (в т.ч. на Vercel,
-  // где data/hasi.db закоммичен в git и упакован через outputFileTracingIncludes).
+  // 1) Явный локальный режим — всегда файловый SQLite (и локально, и на Vercel
+  // для закоммиченного data/hasi.db через outputFileTracingIncludes).
   if (forceLocal) return writableFileDb()
 
-  // На Vercel — Turso, если заданы; иначе закоммиченная data/hasi.db.
-  // Пустая in-memory база больше не используется: именно она была причиной
-  // расхождения (Vercel показывал демо-заглушки вместо 47 актуальных товаров).
-  if (isVercel()) {
-    if (url && token) {
-      return createClient({ url, authToken: token })
-    }
-    return writableFileDb()
-  }
+  // 2) Локальная разработка — всегда data/hasi.db, даже если заданы TURSO-переменные.
+  // Так записи пользователей/дилеров при dev остаются в локальном файле.
+  if (isLocalDevelopment()) return writableFileDb()
 
-  // Иначе Turso, если заданы.
+  // 3) Production (Vercel / NODE_ENV=production) — облачный Turso (libsql),
+  // если заданы TURSO_DATABASE_URL и TURSO_AUTH_TOKEN.
   if (url && token) {
     return createClient({ url, authToken: token })
   }
 
-  // Локальный прод/дев без Turso — закоммиченный файл, иначе память (только для dev).
+  // 4) Production без Turso — закоммиченная data/hasi.db (копия в /tmp).
+  // Пустая in-memory база больше не используется: именно она была причиной
+  // расхождения (Vercel показывал демо-заглушки вместо 47 актуальных товаров).
+  if (isVercel()) return writableFileDb()
+
+  // Локальный прод без Turso — закоммиченный файл, иначе память (только для dev).
   if (existsSync(bundledDbPath()) || existsSync("data/hasi.db")) {
     try {
       return writableFileDb()
@@ -92,11 +92,15 @@ if (process.env.NODE_ENV !== "production") {
 
 export const usingTurso = Boolean(
   process.env.TURSO_DATABASE_URL?.trim() && process.env.TURSO_AUTH_TOKEN?.trim()
-)
+) && process.env.USE_LOCAL_DB !== "true" && !isLocalDevelopment()
 
+// Честный режим базы (совпадает с createDb выше):
+// Turso — только Production с TURSO-переменными без USE_LOCAL_DB;
+// file — локальная разработка и Vercel с закоммиченным data/hasi.db (копия в /tmp);
+// memory — только крайний случай без файла базы.
 export const databaseMode: "file" | "turso" | "memory" =
-  isLocalDbAllowed()
-    ? "file"
-    : usingTurso
-      ? "turso"
+  usingTurso
+    ? "turso"
+    : isLocalDbAllowed() || isLocalDevelopment()
+      ? "file"
       : "memory";

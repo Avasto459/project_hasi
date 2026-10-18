@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from "crypto";
 import { getCodeSecret, signToken } from "@/lib/auth";
 import { normalizeTajikPhone } from "@/lib/phone";
-import { db } from "./db";
+import { db, databaseMode, usingTurso } from "./db";
 import { initializeDatabase } from "./seed";
 
 export type UserRole = "USER" | "ADMIN" | "DEALER" | "DISTRIBUTOR";
@@ -33,8 +33,13 @@ export function getSiteUrl(request?:Request){const e=process.env.NEXT_PUBLIC_SIT
 export function apiUrl(path:string,request?:Request){return `${getSiteUrl(request)}${path.startsWith("/")?path:`/${path}`}`}
 export function legacyOrderStatus(s:string):OrderStatus|null{return ({new:"new",pending:"new",confirmed:"processing",processing:"processing",shipped:"processing",completed:"completed",cancelled:"cancelled"} as Record<string,OrderStatus>)[s]||null}
 export function isReadOnlyMode(){return false}
-export function getDatabaseMode():"file"|"memory"|"seed-only"{return "file"}
-export function isDatabaseFallback(){return false}
+export function getDatabaseMode():"file"|"memory"|"seed-only"|"turso"{
+  // Совпадает с createDb: Turso — только Production без USE_LOCAL_DB;
+  // иначе file (локальный dev + Vercel с data/hasi.db) или memory.
+  if (usingTurso) return "turso";
+  return databaseMode === "memory" ? "memory" : "file";
+}
+export function isDatabaseFallback(){return getDatabaseMode()==="memory"}
 export function getDatabaseInitError(){return null}
 export function getDb(){return db}
 export async function ensureSeedAdmin(){await ready()}
@@ -127,7 +132,7 @@ export async function deleteProductById(id:string){await ready();await db.execut
 export async function getUserByEmail(email:string){await ready();const r=await db.execute({sql:`SELECT * FROM users WHERE lower(email)=? LIMIT 1`,args:[email.trim().toLowerCase()]});return r.rows[0]?row<User>(r.rows[0]):undefined}
 export async function getUserByPhone(phone:string){await ready();const n=normalizeTajikPhone(phone);if(!n)return undefined;const r=await db.execute(`SELECT * FROM users`);return r.rows.map(x=>row<User>(x)).find(u=>normalizeTajikPhone(u.phone||"")===n)}
 export async function getUserById(id:string){await ready();const r=await db.execute({sql:`SELECT * FROM users WHERE id=? LIMIT 1`,args:[id]});return r.rows[0]?row<User>(r.rows[0]):undefined}
-export async function createUser(p:{firstName:string;lastName:string;email:string;phone:string;passwordHash:string;role?:UserRole}){await ready();const id=randomUUID();await db.execute({sql:`INSERT INTO users(id,firstName,lastName,email,phone,passwordHash,role,createdAt) VALUES(?,?,?,?,?,?,?,?)`,args:[id,p.firstName,p.lastName,p.email.toLowerCase(),p.phone,p.passwordHash,p.role||"USER",now()]});return getUserById(id)}
+export async function createUser(p:{firstName:string;lastName:string;email:string;phone:string;passwordHash:string;role?:UserRole}){await ready();const id=randomUUID();try{await db.execute({sql:`INSERT INTO users(id,firstName,lastName,email,phone,passwordHash,role,avatar,emailVerified,isBlocked,status,createdAt) VALUES(?,?,?,?,?,?,?,NULL,0,0,'active',?)`,args:[id,p.firstName,p.lastName,p.email.trim().toLowerCase(),p.phone,p.passwordHash,p.role||"USER",now()]});}catch(error){if(error instanceof Error && /UNIQUE constraint failed: users\.email/i.test(error.message))throw new StoreError("Пользователь с таким email уже существует.",409);throw error;}return getUserById(id)}
 export async function createAdminUser(p:{name:string;email:string;passwordHash:string},actorId:string){const [firstName,...rest]=p.name.trim().split(/\s+/);const user=await createUser({firstName:firstName||"HASI",lastName:rest.join(" "),email:p.email,phone:"",passwordHash:p.passwordHash,role:"ADMIN"});if(!user)throw new StoreError("Не удалось создать администратора.",500);return user}
 export async function updateUserProfile(userId:string,p:{firstName?:string;lastName?:string;phone?:string|null;avatar?:string|null}){await ready();const s:string[]=[];const a:any[]=[];for(const k of ["firstName","lastName","phone","avatar"] as const)if(p[k]!==undefined){s.push(`${k}=?`);a.push(p[k])}if(s.length){a.push(userId);await db.execute({sql:`UPDATE users SET ${s.join(",")} WHERE id=?`,args:a})}return getUserById(userId)}
 export async function updateUserPassword(userId:string,newPasswordHash:string){await ready();await db.execute({sql:`UPDATE users SET passwordHash=? WHERE id=?`,args:[newPasswordHash,userId]})}
