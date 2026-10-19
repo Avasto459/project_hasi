@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, Camera, Cable, HardDrive, MonitorCog, ShieldCheck } from "lucide-react";
+import { ArrowRight, BadgeCheck, Camera, Cable, ClipboardList, HardDrive, Headphones, MessagesSquare, MonitorCog, PackageCheck, ShieldCheck, Truck, Wrench } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { SiteShell } from "@/components/site-shell";
-import { getCategories, getProducts } from "@/lib/db";
+import { getProducts } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +12,53 @@ const equipmentTypes = [
   { name: "Комплектующие", detail: "Диски, кабели, питание", icon: HardDrive },
 ];
 
+const advantages = [
+  {
+    title: "Официальная гарантия",
+    detail: "Только сертифицированное оборудование с официальной гарантией производителя и обменом в случае брака.",
+    icon: BadgeCheck,
+  },
+  {
+    title: "Профессиональный монтаж",
+    detail: "Собственная бригада инженеров смонтирует и настроит систему под ваш объект — аккуратно и в срок.",
+    icon: Wrench,
+  },
+  {
+    title: "Поддержка 24/7",
+    detail: "Поможем с настройкой доступа, неисправностями и обновлениями в любое время — по телефону и онлайн.",
+    icon: Headphones,
+  },
+  {
+    title: "Доставка по ТД",
+    detail: "Быстрая доставка по Душанбе и всем городам Таджикистана: самовывоз, курьер или транспортная компания.",
+    icon: Truck,
+  },
+];
+
+const steps = [
+  {
+    title: "Заявка",
+    detail: "Оставьте заявку на сайте, позвоните или напишите нам — это займёт пару минут.",
+    icon: ClipboardList,
+  },
+  {
+    title: "Консультация",
+    detail: "Подберём оборудование под ваш бюджет и объект, подготовим смету и ответим на вопросы.",
+    icon: MessagesSquare,
+  },
+  {
+    title: "Доставка и монтаж",
+    detail: "Привезём оборудование, смонтируем камеры, проложим кабели и настроим запись и доступ.",
+    icon: Truck,
+  },
+  {
+    title: "Готовый результат",
+    detail: "Получаете работающую систему видеонаблюдения с обучающим инструктажем и гарантией.",
+    icon: PackageCheck,
+  },
+];
+
 export default async function HomePage() {
-  const categories = (await getCategories()).filter((category) => !category.parentId); // на главной — только главные категории
   const popularProducts = await getProducts({ featured: true, limit: 4 });
   const newProducts = await getProducts({ limit: 4 });
 
@@ -62,27 +107,48 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[.18em] text-violet-700 dark:text-violet-300">Каталог HASI.TJ</p>
-            <h2 className="mt-2 text-3xl font-black text-slate-900 dark:text-white">Категории оборудования</h2>
+      <section className="relative overflow-hidden bg-slate-950 py-14 text-white sm:py-16">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(124,58,237,.18),transparent_40%),radial-gradient(circle_at_85%_80%,rgba(59,130,246,.12),transparent_45%)]" />
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl">
+            <p className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">Почему мы</p>
+            <h2 className="mt-2 text-3xl font-black">Почему выбирают HASI.TJ</h2>
+            <p className="mt-3 text-slate-400">Мы поставляем, монтируем и обслуживаем системы видеонаблюдения по всей Таджикистану — под ключ и с гарантией.</p>
           </div>
-          <Link href="/catalog" className="text-sm font-semibold text-violet-700 hover:underline dark:text-violet-300">Все товары →</Link>
-        </div>
-        {categories.length ? (
-          <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map((category) => (
-              <Link key={category.id} href={`/category/${category.slug}`} className="group rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-violet-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-center justify-between">
-                  <div className="text-lg font-bold text-slate-900 dark:text-white">{category.name}</div>
-                  <ArrowRight className="h-5 w-5 text-violet-600 transition group-hover:translate-x-1" />
+          <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {advantages.map(({ title, detail, icon: Icon }) => (
+              <div key={title} className="group rounded-3xl border border-white/10 bg-white/[.04] p-6 backdrop-blur transition hover:-translate-y-1 hover:border-violet-400/50 hover:bg-white/[.07]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-lg shadow-violet-900/40 transition group-hover:scale-105">
+                  <Icon className="h-6 w-6 text-white" />
                 </div>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{category.subtitle || category.description}</p>
-              </Link>
+                <h3 className="mt-5 font-bold">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-400">{detail}</p>
+              </div>
             ))}
           </div>
-        ) : <p className="mt-6 text-slate-500">Категории скоро появятся.</p>}
+        </div>
+      </section>
+
+      <section className="bg-slate-900 py-14 text-white dark:bg-slate-950">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl">
+            <p className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">Процесс работы</p>
+            <h2 className="mt-2 text-3xl font-black">Как мы работаем</h2>
+            <p className="mt-3 text-slate-400">Прозрачный процесс от заявки до готовой системы наблюдения — обычно занимает 1–3 дня.</p>
+          </div>
+          <div className="mt-9 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {steps.map(({ title, detail, icon: Icon }, index) => (
+              <div key={title} className="rounded-3xl border border-slate-700/70 bg-slate-800/60 p-6 transition hover:-translate-y-1 hover:border-violet-400/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-4xl font-black text-violet-500/40">{String(index + 1).padStart(2, "0")}</span>
+                  <Icon className="h-7 w-7 text-violet-300" />
+                </div>
+                <h3 className="mt-4 font-bold">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-400">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="bg-slate-900 py-14 text-white dark:bg-slate-950">
